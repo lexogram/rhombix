@@ -1,17 +1,13 @@
 import { useRef, useState } from 'react'
-import { useFrame, extend, BufferGeometryNode } from '@react-three/fiber'
-
-declare module '@react-three/fiber' {
-  interface ThreeElements {
-    customElement: BufferGeometryNode<CustomElement, typeof CustomElement>
-  }
-}
-
+import { useFrame } from '@react-three/fiber'
+import { DoubleSide } from 'three'
 
 
 type ShapeProps = {
+  color: number
+  position: [ number, number, number]
+  scale: number
   hovered: boolean
-  clicked: boolean
 }
 type Rotation = {
   x: number
@@ -24,23 +20,22 @@ type BoxRef = any // sledgehammer to keep TypeScript quiet
 
 
 const Shape = (props:ShapeProps) => {
-  // const { hovered, clicked } = props
+  const { color, position, scale, hovered } = props
 
   return (
     <mesh
-      position={[0, 0, 0]}
+      position={position}
       rotation={[Math.PI / 2, 0, 0]}
-      scale={[1, 1, 1]}
+      scale={scale}
     >
-      <planeBufferGeometry />
+      <planeGeometry />
       <meshBasicMaterial
-        color={0x880000}
+        color={hovered ? "#f00" : color}
+        side={DoubleSide}
       />
     </mesh>
   )
 }
-
-extend({ Shape })
 
 
 
@@ -69,8 +64,10 @@ const Rhombohedron = () => {
       onPointerOut={() => hover(false)}
     >
       <Shape
+        position={[0,0,0]}
+        color={0xff00ff}
+        scale={2}
         hovered={hovered}
-        clicked={active}
       />
     </group>
   )
