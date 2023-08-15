@@ -157,7 +157,8 @@ type BoxMesh = {
   rotation: Rotation
 } | undefined
 type BoxRef = any // sledgehammer to keep TypeScript quiet
-type Vertices = Float32Array /*[
+type Vertex = [number, number, number]
+type Vertices =  Vertex[]/*[
   number, number, number,
   number, number, number,
   number, number, number,
@@ -190,17 +191,17 @@ const ACUTE = {
   Q: BT / 2
 }
 
-const ACUTE_VERTICES = new Float32Array([
-  X, ACUTE.Q,   -ACUTE.H/2,
-  0, ACUTE.Q+Y, -ACUTE.H/2,
- -X, ACUTE.Q,   -ACUTE.H/2,
-  0, ACUTE.Q-Y, -ACUTE.H/2,
-
-  X, -ACUTE.Q,   ACUTE.H/2,
-  0, -ACUTE.Q+Y, ACUTE.H/2,
- -X, -ACUTE.Q,   ACUTE.H/2,
-  0, -ACUTE.Q-Y, ACUTE.H/2,
-]);
+const ACUTE_VERTICES = [
+  [ X, ACUTE.Q,   -ACUTE.H/2],
+  [ 0, ACUTE.Q+Y, -ACUTE.H/2],
+  [-X, ACUTE.Q,   -ACUTE.H/2],
+  [ 0, ACUTE.Q-Y, -ACUTE.H/2],
+ 
+  [ X, -ACUTE.Q,   ACUTE.H/2],
+  [ 0, -ACUTE.Q+Y, ACUTE.H/2],
+  [-X, -ACUTE.Q,   ACUTE.H/2],
+  [ 0, -ACUTE.Q-Y, ACUTE.H/2],
+]
 
 // Obtuse
 const AT = BE / Y
@@ -209,58 +210,34 @@ const OBTUSE = {
   Q: X - AT / 2
 }
 
-const OBTUSE_VERTICES = new Float32Array([
-   OBTUSE.Q+X, 0, -OBTUSE.H/2,
-   OBTUSE.Q,   Y, -OBTUSE.H/2,
-   OBTUSE.Q-X, 0  -OBTUSE.H/2,
-   OBTUSE.Q,  -Y, -OBTUSE.H/2,
+const OBTUSE_VERTICES = [
+  [ OBTUSE.Q+X, 0, -OBTUSE.H/2],
+  [ OBTUSE.Q,   Y, -OBTUSE.H/2],
+  [ OBTUSE.Q-X, 0, -OBTUSE.H/2],
+  [ OBTUSE.Q,  -Y, -OBTUSE.H/2],
 
-  -OBTUSE.Q+X, 0, -OBTUSE.H/2,
-  -OBTUSE.Q,   Y, -OBTUSE.H/2,
-  -OBTUSE.Q-X, 0  -OBTUSE.H/2,
-  -OBTUSE.Q,  -Y, -OBTUSE.H/2,
-]);
+  [-OBTUSE.Q+X, 0, -OBTUSE.H/2],
+  [-OBTUSE.Q,   Y, -OBTUSE.H/2],
+  [-OBTUSE.Q-X, 0, -OBTUSE.H/2],
+  [-OBTUSE.Q,  -Y, -OBTUSE.H/2]
+]
 
 const createFaces = (v:Vertices):Faces => {
   const faceArray = [
-    v[2], v[1], v[0],
-    v[0], v[3], v[2]
+    ...v[2], ...v[1], ...v[0], // face 1, righthand rule
+    ...v[2], ...v[0], ...v[3], // face 2
   ]
 
-  const iterable = (function* () {
-    yield* faceArray;
-  })();
-
-  const float32FromIterable = new Float32Array(iterable);
-  return float32FromIterable;
+  return new Float32Array(faceArray);
 }
-
-
-// const convertToFloat32Array = (a:Array<number>): Faces => {
-//   const iterable = (function* () {
-//     yield* a;
-//   })();
-
-//   return new Float32Array(iterable);
-// }
 
 const Shape = (props:ShapeProps) => {
   const { scale, color, position, shape } = props
-  // const vertices:Vertices = shape === "ACUTE"
-  //   ? ACUTE_VERTICES
-  //   : OBTUSE_VERTICES
-  // const faces = createFaces(vertices)
-  //              .map(vertex => vertex * scale)
-  const faces = new Float32Array([
-    -0.8506507873535156,
-    0.525731086730957,
-    1.051462173461914,
-    1.051462173461914,
-    0,
-    -0.8506507873535156
-  ])
-  console.log("faces:", faces, faces instanceof Float32Array);
-
+  const vertices:Vertices = shape === "ACUTE"
+    ? ACUTE_VERTICES
+    : OBTUSE_VERTICES
+  const faces = createFaces(vertices)
+               .map(vertex => vertex * scale)
 
   return (
     <mesh
@@ -278,21 +255,21 @@ const Shape = (props:ShapeProps) => {
         attach="material"
         color={color}
         flatShading={true}
-        side={DoubleSide}
+        // side={DoubleSide}
       />
     </mesh>
   )
 }
 
 
-// const faceData:FaceData = [
-//   { position: [ 0,  1, 0 ], color: 0xff0000 },
-//   { position: [ 3, -1, 0 ], color: 0xffff00 },
-//   { position: [ 3,  1, 0 ], color: 0x00ff00 },
-//   { position: [ 0, -1, 0 ], color: 0x00ffff },
-//   { position: [-3,  1, 0 ], color: 0x0000ff },
-//   { position: [-3, -1, 0 ], color: 0xff00ff }
-// ]
+const faceData:FaceData = [
+  { position: [ 0,  1, 0 ], color: 0xff0000 },
+  { position: [ 3, -1, 0 ], color: 0xffff00 },
+  { position: [ 3,  1, 0 ], color: 0x00ff00 },
+  { position: [ 0, -1, 0 ], color: 0x00ffff },
+  { position: [-3,  1, 0 ], color: 0x0000ff },
+  { position: [-3, -1, 0 ], color: 0xff00ff }
+]
 
 
 const Rhombohedron = () => {
@@ -302,25 +279,26 @@ const Rhombohedron = () => {
   // const [ clicked, click ] = useState(false)
   const [ active, setActive ] = useState(false)
 
-  // useFrame((_state, delta) => {
-  //   const boxMesh:BoxMesh = ref.current
+  useFrame((_state, delta) => {
+    const boxMesh:BoxMesh = ref.current
 
-  //   if (boxMesh && boxMesh["rotation"] && active) {
-  //     const rotation:Rotation = boxMesh["rotation"]
-  //     rotation["x"] += delta
-  //   }
-  // })
+    if (boxMesh && boxMesh["rotation"] && active) {
+      const rotation:Rotation = boxMesh["rotation"]
+      rotation["x"] += delta
+    }
+  })
 
   // @ts-ignore
-  // const faces = faceData.map(({ position, color }, ii) => (
-  //   <Shape
-  //     key={ii}
-  //     position={position}
-  //     color={color}
-  //     scale={2}
-  //     hovered={hovered}
-  //   />
-  // ))
+  const faces = faceData.map(({ position, color }, ii) => (
+    <Shape
+      key={ii}
+      position={position}
+      color={color}
+      scale={2}
+      hovered={hovered}
+      shape="ACUTE"
+    />
+  ))
 
   return (
     <group
@@ -330,13 +308,14 @@ const Rhombohedron = () => {
       onPointerOver={() => hover(true)}
       onPointerOut={() => hover(false)}
     >
-      <Shape
+      {faces}
+      {/* <Shape
         scale={2}
         color={0xff0000}
         position={[0,0,0]}
         shape="ACUTE"
         hovered={hovered}
-      />
+      /> */}
     </group>
   )
 }
