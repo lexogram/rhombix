@@ -8,11 +8,11 @@ function App() {
   return (
     <>
       <Canvas>
-        <ambientLight />
+        {/* <ambientLight /> */}
         <pointLight
           position={[1,4,9]}
-          intensity={256}
-          color={"#ff0"}
+          intensity={512}
+          // color={"#fff"}
         />
         <Rhombohedron />
       </Canvas>

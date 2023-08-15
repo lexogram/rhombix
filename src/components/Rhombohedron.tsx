@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 import { useFrame } from '@react-three/fiber'
-import { DoubleSide, Vector3 } from 'three'
+import { Vector3 } from 'three'
 
 /*
 1. A golden rhombus is a squished square. It has four equal sides.
@@ -138,13 +138,10 @@ and
 O'Q = (X - AT) / 2
 */
 
-type Position = [number, number, number] | Vector3 | undefined
-type FaceData = {
-  position: Position
-  color: number
-}[]
+
+type Position = Vector3 | [number, number, number]
 type ShapeProps = {
-  color: number
+  colors: number[]
   position: Position
   scale: number
   hovered: boolean
@@ -158,19 +155,11 @@ type BoxMesh = {
 } | undefined
 type BoxRef = any // sledgehammer to keep TypeScript quiet
 type Vertex = [number, number, number]
-type Vertices =  Vertex[]/*[
-  number, number, number,
-  number, number, number,
-  number, number, number,
-  number, number, number,
-
-  number, number, number,
-  number, number, number,
-  number, number, number,
-  number, number, number
+type Vertices = [
+  Vertex, Vertex, Vertex, Vertex,
+  Vertex, Vertex, Vertex, Vertex
 ]
-*/
-type Faces = Float32Array // number[]
+type Faces = Float32Array[]
 
 
 
@@ -180,7 +169,7 @@ const GAMMA = Math.PI / 2 - THETA
 const ALPHA = GAMMA * 2
 const Y = Math.sin(THETA)
 const X = Math.cos(THETA)
-const AE = Math.sin(ALPHA)
+// const AE = Math.sin(ALPHA)
 const BE = Math.cos(ALPHA)
 
 // Acute
@@ -191,16 +180,16 @@ const ACUTE = {
   Q: BT / 2
 }
 
-const ACUTE_VERTICES = [
-  [ X, ACUTE.Q,   -ACUTE.H/2],
-  [ 0, ACUTE.Q+Y, -ACUTE.H/2],
-  [-X, ACUTE.Q,   -ACUTE.H/2],
-  [ 0, ACUTE.Q-Y, -ACUTE.H/2],
- 
-  [ X, -ACUTE.Q,   ACUTE.H/2],
-  [ 0, -ACUTE.Q+Y, ACUTE.H/2],
-  [-X, -ACUTE.Q,   ACUTE.H/2],
-  [ 0, -ACUTE.Q-Y, ACUTE.H/2],
+const ACUTE_VERTICES:Vertices = [
+  [ X, ACUTE.Q,   -ACUTE.H/2], // A: 0
+  [ 0, ACUTE.Q+Y, -ACUTE.H/2], // B: 1
+  [-X, ACUTE.Q,   -ACUTE.H/2], // C: 2
+  [ 0, ACUTE.Q-Y, -ACUTE.H/2], // D: 3
+
+  [ X, -ACUTE.Q,   ACUTE.H/2], // S: 4
+  [ 0, -ACUTE.Q+Y, ACUTE.H/2], // T: 5
+  [-X, -ACUTE.Q,   ACUTE.H/2], // U: 6
+  [ 0, -ACUTE.Q-Y, ACUTE.H/2], // V: 7
 ]
 
 // Obtuse
@@ -210,35 +199,65 @@ const OBTUSE = {
   Q: X - AT / 2
 }
 
-const OBTUSE_VERTICES = [
-  [ OBTUSE.Q+X, 0, -OBTUSE.H/2],
-  [ OBTUSE.Q,   Y, -OBTUSE.H/2],
-  [ OBTUSE.Q-X, 0, -OBTUSE.H/2],
-  [ OBTUSE.Q,  -Y, -OBTUSE.H/2],
+const OBTUSE_VERTICES:Vertices = [
+  [ OBTUSE.Q+X, 0, -OBTUSE.H/2], // A: 0
+  [ OBTUSE.Q,   Y, -OBTUSE.H/2], // B: 1
+  [ OBTUSE.Q-X, 0, -OBTUSE.H/2], // C: 2
+  [ OBTUSE.Q,  -Y, -OBTUSE.H/2], // D: 3
 
-  [-OBTUSE.Q+X, 0, -OBTUSE.H/2],
-  [-OBTUSE.Q,   Y, -OBTUSE.H/2],
-  [-OBTUSE.Q-X, 0, -OBTUSE.H/2],
-  [-OBTUSE.Q,  -Y, -OBTUSE.H/2]
+  [-OBTUSE.Q+X, 0,  OBTUSE.H/2], // T: 4
+  [-OBTUSE.Q,   Y,  OBTUSE.H/2], // U: 5
+  [-OBTUSE.Q-X, 0,  OBTUSE.H/2], // V: 6
+  [-OBTUSE.Q,  -Y,  OBTUSE.H/2]  // S: 7
 ]
 
-const createFaces = (v:Vertices):Faces => {
-  const faceArray = [
-    ...v[2], ...v[1], ...v[0], // face 1, righthand rule
-    ...v[2], ...v[0], ...v[3], // face 2
-  ]
-
-  return new Float32Array(faceArray);
-}
-
-const Shape = (props:ShapeProps) => {
-  const { scale, color, position, shape } = props
-  const vertices:Vertices = shape === "ACUTE"
+const createFaces = (shape:string):Faces => {
+  const isAcute = shape === "ACUTE"
+  const v:Vertices = isAcute
     ? ACUTE_VERTICES
     : OBTUSE_VERTICES
-  const faces = createFaces(vertices)
-               .map(vertex => vertex * scale)
 
+  const faceArray = isAcute
+    ? [
+        [...v[1], ...v[0], ...v[2],  // face 1.1 BAC righthand rule 
+         ...v[3], ...v[2], ...v[0]], // face 1.2 DCA
+        [...v[1], ...v[2], ...v[5],  // face 2.1 BCT
+         ...v[6], ...v[5], ...v[2]], // face 2.2 UTC
+        [...v[1], ...v[5], ...v[0],  // face 3   BTA
+         ...v[4], ...v[0], ...v[5]], //          SAT
+        [...v[7], ...v[3], ...v[4],  // face 4   VDS
+         ...v[0], ...v[4], ...v[3]], //          ASD
+        [...v[7], ...v[6], ...v[3],  // face 5   VUD
+         ...v[2], ...v[3], ...v[6]], //          CDU
+        [...v[7], ...v[4], ...v[6],  // face 6   VSU
+         ...v[5], ...v[6], ...v[4]]  //          TUS
+      ]
+    : [
+      [...v[2], ...v[1], ...v[0],  // face 1.1 CBA righthand rule 
+       ...v[2], ...v[0], ...v[3]], // face 1.2 CAD
+      [...v[2], ...v[5], ...v[1],  // face 2.1 CUB
+       ...v[2], ...v[6], ...v[5]], // face 2.2 CVU
+      [...v[3], ...v[7], ...v[2],  // face 3   CDS
+       ...v[6], ...v[2], ...v[7]], //          VCS
+      [...v[4], ...v[3], ...v[0],  // face 4   TDA
+       ...v[4], ...v[7], ...v[3]], //          TSD
+      [...v[4], ...v[1], ...v[5],  // face 5   TBU
+       ...v[4], ...v[0], ...v[1]], //          TAB
+      [...v[4], ...v[5], ...v[6],  // face 6   TUV
+       ...v[4], ...v[6], ...v[7]]  //          TVS
+    ]
+
+  return faceArray.map(face => new Float32Array(face));
+}
+
+
+type FaceProps = {
+  position:Position
+  faces:Float32Array
+  color:number
+}
+const Face = (props:FaceProps) => {
+  const { position, faces, color } = props
   return (
     <mesh
       position={position}
@@ -255,21 +274,30 @@ const Shape = (props:ShapeProps) => {
         attach="material"
         color={color}
         flatShading={true}
-        // side={DoubleSide}
       />
     </mesh>
   )
 }
 
 
-const faceData:FaceData = [
-  { position: [ 0,  1, 0 ], color: 0xff0000 },
-  { position: [ 3, -1, 0 ], color: 0xffff00 },
-  { position: [ 3,  1, 0 ], color: 0x00ff00 },
-  { position: [ 0, -1, 0 ], color: 0x00ffff },
-  { position: [-3,  1, 0 ], color: 0x0000ff },
-  { position: [-3, -1, 0 ], color: 0xff00ff }
-]
+const Shape = (props:ShapeProps) => {
+  const { scale, colors, position, shape } = props
+
+  const faces = createFaces(shape)
+               .map(face => face.map(vertex => vertex * scale))
+               .map((faces, ii) => {2
+                  return (
+                    <Face
+                      key={ii}
+                      color={colors[ii]}
+                      position={position}
+                      faces={faces}
+                    />
+                  )
+               })
+
+  return faces
+}
 
 
 const Rhombohedron = () => {
@@ -277,7 +305,7 @@ const Rhombohedron = () => {
 
   const [hovered, hover] = useState(false)
   // const [ clicked, click ] = useState(false)
-  const [ active, setActive ] = useState(false)
+  const [ active, setActive ] = useState(true)
 
   useFrame((_state, delta) => {
     const boxMesh:BoxMesh = ref.current
@@ -288,34 +316,37 @@ const Rhombohedron = () => {
     }
   })
 
-  // @ts-ignore
-  const faces = faceData.map(({ position, color }, ii) => (
-    <Shape
-      key={ii}
-      position={position}
-      color={color}
-      scale={2}
-      hovered={hovered}
-      shape="ACUTE"
-    />
-  ))
+  const colors = [
+    0xff0000,
+    0xffff00,
+    0x00ff00,
+    0x00ffff,
+    0x0000ff,
+    0xff00ff,
+  ]
 
   return (
     <group
       ref={ref}
-      position={[1,2,-5]}
+      position={[0,0,-15]}
       onClick={() => setActive(!active)}
       onPointerOver={() => hover(true)}
       onPointerOut={() => hover(false)}
     >
-      {faces}
-      {/* <Shape
-        scale={2}
-        color={0xff0000}
-        position={[0,0,0]}
+      <Shape
+        scale={5}
+        colors={colors}
+        position={[4, 0, 0]}
+        shape="OBTUSE"
+        hovered={hovered}
+      />
+      <Shape
+        scale={5}
+        colors={colors}
+        position={[-4, 0, 0]}
         shape="ACUTE"
         hovered={hovered}
-      /> */}
+      />
     </group>
   )
 }
